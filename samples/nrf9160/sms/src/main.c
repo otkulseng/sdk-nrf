@@ -30,8 +30,10 @@ static void sms_callback(struct sms_data *const data, void *context)
 			header->time.minute,
 			header->time.second);
 
-		printk("\tText:   '%s'\n", data->payload);
-		printk("\tLength: %d\n", data->payload_len);
+		for (int i = 0; i < 15; i++){
+			printk("%02X",data->payload[i]);
+		}
+		printk("\n\tLength: %d\n", data->payload_len);
 
 		if (header->app_port.present) {
 			printk("\tApplication port addressing scheme: dest_port=%d, src_port=%d\n",
@@ -55,8 +57,15 @@ void main(void)
 {
 	int handle = 0;
 	int ret = 0;
+	uint8_t payload[] = {
+		0x01,0x02,0x03,0x04,0x05,0x06,
+		0x07,0x08,0x09,0x0A,0x0B,0x0C,
+		0x0D,0x0E,0x0F};
+
+	uint8_t payload_len = sizeof(payload);
 
 	printk("\nSMS sample starting\n");
+	printk("Payload : %02X \n",payload);
 
 	handle = sms_register_listener(sms_callback, NULL);
 	if (handle) {
@@ -69,12 +78,14 @@ void main(void)
 	/* Sending is done to the phone number specified in the configuration,
 	 * or if it's left empty, an information text is printed.
 	 */
+
 	if (strcmp(CONFIG_SMS_SEND_PHONE_NUMBER, "")) {
-		printk("Sending SMS: number=%s, text=\"SMS sample: testing\"\n",
+		printk("Sending SMS: number=%s\n",
 			CONFIG_SMS_SEND_PHONE_NUMBER);
-		ret = sms_send_text(CONFIG_SMS_SEND_PHONE_NUMBER, "SMS sample: testing");
+		//ret = sms_send_text(CONFIG_SMS_SEND_PHONE_NUMBER, "SMS sample: testing");
+		ret = sms_send_data(CONFIG_SMS_SEND_PHONE_NUMBER, payload, payload_len);
 		if (ret) {
-			printk("Sending SMS failed with error: %d\n", ret);
+			printk("Sending SMS data failed with error: %d\n", ret);
 		}
 	} else {
 		printk("\nSMS sending is skipped but receiving will still work.\n"
