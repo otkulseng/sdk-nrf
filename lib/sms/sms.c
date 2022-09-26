@@ -375,6 +375,6 @@ int sms_send_text(const char *number, const char *text)
 	return sms_submit_send(number, text);
 }
 
-int sms_send_data(const char *number, uint8_t *data, uint8_t data_len){
+int sms_send_data(const char *number, const uint8_t *data, uint8_t data_len){
 	return sms_submit_send_data(number, data, data_len);
 }

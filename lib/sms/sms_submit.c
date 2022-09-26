@@ -388,7 +388,7 @@ int sms_submit_send(const char *number, const char *text)
 }
 
 static int sms_submit_concat_data(
-	uint8_t *data,
+	const uint8_t *data,
 	uint8_t data_size,
 	uint8_t *encoded_number,
 	uint8_t encoded_number_size,
@@ -461,7 +461,7 @@ static int sms_submit_concat_data(
 	return err;
 }
 
-int sms_submit_send_data(const char *number, uint8_t *data, uint8_t data_len)
+int sms_submit_send_data(const char *number, const uint8_t *data, uint8_t data_len)
 {
 	int err;
 	uint8_t encoded_number[SMS_MAX_ADDRESS_LEN_CHARS + 1];
