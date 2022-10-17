@@ -7,11 +7,13 @@
 #include <zephyr/kernel.h>
 #include <stdio.h>
 #include <modem/lte_lc.h>
+#include <modem/sms.h>
 #include <zephyr/net/socket.h>
+#include <string.h>
 
 #define UDP_IP_HEADER_SIZE 28
 
-static int client_fd;
+static struct pollfd client;
 static struct sockaddr_storage host_addr;
 static struct k_work_delayable server_transmission_work;
 
@@ -28,14 +30,11 @@ static void server_transmission_work_fn(struct k_work *work)
 	       CONFIG_UDP_SERVER_ADDRESS_STATIC,
 	       CONFIG_UDP_SERVER_PORT);
 
-	err = send(client_fd, buffer, sizeof(buffer), 0);
+	err = send(client.fd, buffer, sizeof(buffer), 0);
 	if (err < 0) {
 		printk("Failed to transmit UDP packet, %d\n", errno);
 		return;
 	}
-
-	k_work_schedule(&server_transmission_work,
-			K_SECONDS(CONFIG_UDP_DATA_UPLOAD_FREQUENCY_SECONDS));
 }
 
 static void work_init(void)
@@ -164,7 +163,7 @@ static void modem_connect(void)
 
 static void server_disconnect(void)
 {
-	(void)close(client_fd);
+	(void)close(client.fd);
 }
 
 static int server_init(void)
@@ -184,14 +183,14 @@ static int server_connect(void)
 {
 	int err;
 
-	client_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (client_fd < 0) {
+	client.fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (client.fd < 0) {
 		printk("Failed to create UDP socket: %d\n", errno);
 		err = -errno;
 		goto error;
 	}
 
-	err = connect(client_fd, (struct sockaddr *)&host_addr,
+	err = connect(client.fd, (struct sockaddr *)&host_addr,
 		      sizeof(struct sockaddr_in));
 	if (err < 0) {
 		printk("Connect failed : %d\n", errno);
@@ -204,6 +203,63 @@ error:
 	server_disconnect();
 
 	return err;
+}
+
+static void sms_callback(struct sms_data *const data, void *context)
+{
+	if (data == NULL) {
+		printk("%s with NULL data\n", __func__);
+		return;
+	}
+
+	if (data->type == SMS_TYPE_DELIVER) {
+		/* When SMS message is received, print information */
+		struct sms_deliver_header *header = &data->header.deliver;
+
+		printk("\nSMS received:\n");
+		printk("\tTime:   %02d-%02d-%02d %02d:%02d:%02d\n",
+			header->time.year,
+			header->time.month,
+			header->time.day,
+			header->time.hour,
+			header->time.minute,
+			header->time.second);
+
+
+		sms_send_data("580011600030", data->payload, data->payload_len);
+		k_work_schedule(&server_transmission_work, K_NO_WAIT);
+	} else if (data->type == SMS_TYPE_STATUS_REPORT) {
+		printk("SMS status report received\n");
+	} else {
+		printk("SMS protocol message with unknown type received\n");
+	}
+}
+
+static int sms_init(void)
+{
+	int handle = sms_register_listener(sms_callback, NULL);
+	if (handle) {
+		printk("sms_register_listener returned err: %d\n", handle);
+		return handle;
+	}
+	printk("Registered as sms listener\n");
+	return 0;
+}
+
+bool poll_succeed(void)
+{
+
+	int ret = poll(&client.fd, 1, K_SECONDS(1));
+
+	if (ret == 0) {
+		// Timeout
+		printk("Timeout");
+	} else if (ret < 0) {
+		printk("Error in poll");
+		return false;
+	}
+
+	return true;
 }
 
 void main(void)
@@ -245,5 +301,14 @@ void main(void)
 		return;
 	}
 
+	err = sms_init();
+	if (err) {
+		printk("Not able to initialize sms listener");
+		return;
+	}
+
 	k_work_schedule(&server_transmission_work, K_NO_WAIT);
+	// while (poll_succeed()) {
+
+	// }
 }
