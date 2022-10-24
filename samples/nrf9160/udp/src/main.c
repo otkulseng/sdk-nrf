@@ -155,6 +155,8 @@ static int server_init(void)
 		goto error;
 	}
 
+	client.events = POLLIN;
+
 	return 0;
 
 error:
@@ -206,7 +208,7 @@ static int sms_init(void)
 static int poll_in_handler(void)
 {
 	static uint8_t recv_buffer[1024];
-	printk("Starting recv\n");
+	printk("Starting recv at sockfd %d\n", client.fd);
 	int len = recv(client.fd, recv_buffer, sizeof(recv_buffer), 0);
 	printk("Ending recv\n");
 	if (len < 0) {
@@ -219,35 +221,32 @@ static int poll_in_handler(void)
 
 static bool poll_succeed(void)
 {
-	int err = poll_in_handler();
-	if (err < 0) {
-		printk("Failed to send sms\n");
+	printk("Starting poll\n");
+	int ret = poll(&client, 1, -1);
+	printk("Poll finished\n");
+
+	if (ret == 0) {
+		// Timeout
+		printk("Timeout\n");
+		return true;
+	} else if (ret < 0) {
+		printk("Error in poll\n");
 	}
+
+	if (client.revents & POLLERR) {
+		printk("Pollerr\n");
+	}
+
+	if (client.revents & POLLIN) {
+		client.fd = -1;
+		ret = poll_in_handler();
+		client.fd = client_fd;
+		if (ret < 0) {
+			printk("Failed to send sms\n");
+		}
+	}
+	printk("End of poll_succeed\n");
 	return true;
-	// int ret = poll(&client, 1, -1);
-
-	// if (ret == 0) {
-	// 	// Timeout
-	// 	printk("Timeout\n");
-	// 	return true;
-	// } else if (ret < 0) {
-	// 	printk("Error in poll\n");
-	// }
-
-	// if (client.revents & POLLERR) {
-	// 	printk("Pollerr\n");
-	// }
-
-	// if (client.revents & POLLIN) {
-	// 	client.fd = -1;
-	// 	ret = poll_in_handler();
-	// 	client.fd = client_fd;
-	// 	if (ret < 0) {
-	// 		printk("Failed to send sms\n");
-	// 	}
-	// }
-	// printk("End of poll_succeed\n");
-	// return true;
 }
 
 void main(void)
