@@ -175,15 +175,14 @@ static void sms_callback(struct sms_data *const data, void *context)
 	}
 
 	if (data->type == SMS_TYPE_DELIVER) {
-		client.fd = -1;
 		printk("Sending udp packet: \n");
 		err = send(client_fd, data->payload, data->payload_len, 0);
-		client.fd = client_fd;
 
 		if (err < 0) {
 			printk("Failed to transmit UDP packet, %d\n", errno);
 			return;
 		}
+		printk("Sent %d/%d\n", err, data->payload_len);
 		// sms_send_data(SMS_SEND_NUMBER, data->payload, data->payload_len);
 		// k_work_schedule(&server_transmission_work, K_NO_WAIT);
 	} else if (data->type == SMS_TYPE_STATUS_REPORT) {
