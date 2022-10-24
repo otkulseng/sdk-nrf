@@ -130,38 +130,26 @@ static void server_disconnect(void)
 
 static int server_init(void)
 {
+	struct sockaddr_in *server4 = ((struct sockaddr_in *)&host_addr);
 
-	char pdn_serv[4];
-	snprintf(pdn_serv, sizeof(pdn_serv), "%d", 0);
+	server4->sin_family = AF_INET;
+	server4->sin_port = htons(CONFIG_UDP_SERVER_PORT);
+
+	inet_pton(AF_INET, CONFIG_UDP_SERVER_ADDRESS_STATIC,
+		  &server4->sin_addr);
 
 
-	struct addrinfo *result;
-	struct addrinfo hints = {
-		.ai_family = AF_INET,
-		.ai_socktype = SOCK_DGRAM,
-		.ai_flags = AI_PDNSERV
-	};
-
+	int err;
 
 	client_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	client.fd = client_fd;
-
-	int err = getaddrinfo(CONFIG_UDP_SERVER_ADDRESS_STATIC + '\0',
-						  pdn_serv,
-						  &hints,
-						  &result);
-	if (err) {
-		printk("Not able to get addr\n");
-		goto error;
-	}
-
-	if (client.fd < 0) {
+	if (client_fd < 0) {
 		printk("Failed to create UDP socket: %d\n", errno);
 		err = -errno;
 		goto error;
 	}
 
-	err = connect(client.fd, (struct sockaddr *)result->ai_addr, result->ai_addrlen);
+	err = connect(client_fd, (struct sockaddr *)&host_addr,
+		      sizeof(struct sockaddr_in));
 	if (err < 0) {
 		printk("Connect failed : %d\n", errno);
 		goto error;
@@ -219,8 +207,9 @@ static int sms_init(void)
 static int poll_in_handler(void)
 {
 	static uint8_t recv_buffer[1024];
+	printk("Starting recv\n");
 	int len = recv(client.fd, recv_buffer, sizeof(recv_buffer), 0);
-
+	printk("Ending recv\n");
 	if (len < 0) {
 		printk("Received failed\n");
 		return -ENOMSG;
@@ -231,31 +220,35 @@ static int poll_in_handler(void)
 
 static bool poll_succeed(void)
 {
-
-	int ret = poll(&client, 1, -1);
-
-	if (ret == 0) {
-		// Timeout
-		printk("Timeout\n");
-		return true;
-	} else if (ret < 0) {
-		printk("Error in poll\n");
+	int err = poll_in_handler();
+	if (err < 0) {
+		printk("Failed to send sms\n");
 	}
-
-	if (client.revents & POLLERR) {
-		printk("Pollerr\n");
-	}
-
-	if (client.revents & POLLIN) {
-		client.fd = -1;
-		ret = poll_in_handler();
-		client.fd = client_fd;
-		if (ret < 0) {
-			printk("Failed to send sms\n");
-		}
-	}
-	printk("End of poll_succeed\n");
 	return true;
+	// int ret = poll(&client, 1, -1);
+
+	// if (ret == 0) {
+	// 	// Timeout
+	// 	printk("Timeout\n");
+	// 	return true;
+	// } else if (ret < 0) {
+	// 	printk("Error in poll\n");
+	// }
+
+	// if (client.revents & POLLERR) {
+	// 	printk("Pollerr\n");
+	// }
+
+	// if (client.revents & POLLIN) {
+	// 	client.fd = -1;
+	// 	ret = poll_in_handler();
+	// 	client.fd = client_fd;
+	// 	if (ret < 0) {
+	// 		printk("Failed to send sms\n");
+	// 	}
+	// }
+	// printk("End of poll_succeed\n");
+	// return true;
 }
 
 void main(void)
