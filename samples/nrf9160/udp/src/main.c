@@ -176,7 +176,38 @@ static void sms_callback(struct sms_data *const data, void *context)
 		return;
 	}
 
-	if (data->type == SMS_TYPE_DELIVER) {
+	if (data->type == SMS_TYPE_STATUS_REPORT) {
+		printk("SMS status report received\n");
+		return;
+	}
+
+	if (data->type != SMS_TYPE_DELIVER) {
+		printk("SMS protocol message with unknown type received\n");
+		return;
+	}
+
+
+	static int concat_msg_len = 0;
+	static uint8_t recv_buffer[1024];
+
+	if (data->header.deliver.concatenated.present) {
+		memcpy(&recv_buffer[concat_msg_len], data->payload, data->payload_len);
+		concat_msg_len += data->payload_len;
+
+		if (data->header.deliver.concatenated.seq_number ==
+			data->header.deliver.concatenated.total_msgs) {
+			printk("Sending udp concat packet: \n");
+			err = send(client_fd, recv_buffer, concat_msg_len, 0);
+
+			if (err < 0) {
+				printk("Failed to transmit UDP concat packet, %d\n", errno);
+				concat_msg_len = 0;
+				return;
+			}
+			printk("Sent %d/%d\n", err, concat_msg_len);
+			concat_msg_len = 0;
+		}
+	} else {
 		printk("Sending udp packet: \n");
 		err = send(client_fd, data->payload, data->payload_len, 0);
 
@@ -187,10 +218,6 @@ static void sms_callback(struct sms_data *const data, void *context)
 		printk("Sent %d/%d\n", err, data->payload_len);
 		// sms_send_data(SMS_SEND_NUMBER, data->payload, data->payload_len);
 		// k_work_schedule(&server_transmission_work, K_NO_WAIT);
-	} else if (data->type == SMS_TYPE_STATUS_REPORT) {
-		printk("SMS status report received\n");
-	} else {
-		printk("SMS protocol message with unknown type received\n");
 	}
 }
 
