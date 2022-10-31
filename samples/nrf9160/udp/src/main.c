@@ -238,9 +238,7 @@ static bool poll_succeed(void)
 	}
 
 	if (client.revents & POLLIN) {
-		client.fd = -1;
 		ret = poll_in_handler();
-		client.fd = client_fd;
 		if (ret < 0) {
 			printk("Failed to send sms\n");
 		}
