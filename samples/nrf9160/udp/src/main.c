@@ -12,7 +12,7 @@
 #include <string.h>
 
 #define UDP_IP_HEADER_SIZE 28
-#define SMS_SEND_NUMBER "580011600030"
+#define SMS_SEND_NUMBER "580016538943"
 
 static struct pollfd client;
 static int client_fd;
